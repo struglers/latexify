@@ -18,28 +18,31 @@ def conv3x3(in_channels: int, out_channels: int, stride: int = 1, groups: int = 
                      bias=False,
                      dilation=dilation)
 
+def conv1x1(in_channels: int, out_channels: int, stride: int = 1):
+    """1x1 convolution with no padding"""
+    return nn.Conv2d(in_channels=in_channels,
+                     out_channels=out_channels,
+                     kernel_size=1,
+                     stride=stride,
+                     padding=0,
+                     bias=False)
+
 class ResBlock(nn.Module):
     def __init__(self, num_channels):
         super(ResBlock, self).__init__()
         self.bn1 = nn.BatchNorm2d(16)
-        self.conv1 = nn.Conv2d(in_channels=16, out_channels=num_channels,
-                               kernel_size=3, stride=1, padding=1)
+        self.conv1 = conv3x3(in_channels=16, out_channels=num_channels)
         self.bn2 = nn.BatchNorm2d(num_features=num_channels)
         self.prelu1 = nn.PReLU()
-        self.conv2 = nn.Conv2d(in_channels=num_channels,
-                               out_channels=num_channels,
-                               kernel_size=3, stride=2, padding=1)
+        self.conv2 = conv3x3(in_channels=num_channels, out_channels=num_channels, stride=2)
 
         self.bn3 = nn.BatchNorm2d(num_features=num_channels)
-        self.conv3 = nn.Conv2d(in_channels=num_channels, out_channels=num_channels,
-                               kernel_size=3, stride=1, padding=1)
+        self.conv3 = conv3x3(in_channels=num_channels, out_channels=num_channels)
         self.bn4 = nn.BatchNorm2d(num_features=num_channels)
         self.prelu2 = nn.PReLU()
-        self.conv4 = nn.Conv2d(in_channels=num_channels, out_channels=num_channels,
-                               kernel_size=3, stride=1, padding=1)
+        self.conv4 = conv3x3(in_channels=num_channels, out_channels=num_channels)
 
-        self.conv_res = nn.Conv2d(num_channels, num_channels, kernel_size=1,
-                                  stride=1, padding=0)
+        self.conv_res = conv1x1(num_channels, num_channels, stride=1)
         self.bn5 = nn.BatchNorm2d(num_features=num_channels)
 
     def forward(self, x):
@@ -50,6 +53,6 @@ class LResNet50EIR(nn.Module):
     """Used for extracting features of symbol region"""
     def __init__(self):
         super(LResNet50EIR, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1)
+        self.conv1 = conv3x3(in_channels=16, out_channels=32)
         self.bn1 = nn.BatchNorm2d(16)
         self.prelu = nn.PReLU()
