@@ -193,6 +193,7 @@ dependencies:
     - entrypoints==0.4
     - executing==1.0.0
     - fonttools==4.37.1
+    - gradio==3.4.0
     - ipykernel==6.15.2
     - ipython==8.4.0
     - jedi==0.18.1
@@ -215,11 +216,13 @@ dependencies:
     - psutil==5.9.1
     - ptyprocess==0.7.0
     - pure-eval==0.2.2
+    - pydantic==1.10.2
     - pygments==2.13.0
     - pynacl==1.5.0
     - pyparsing==3.0.9
     - python-dateutil==2.8.2
     - pytz==2022.2.1
+    - pyyaml==6.0
     - pyzmq==23.2.1
     - scikit-learn==1.1.2
     - scipy==1.9.1
@@ -233,4 +236,3 @@ dependencies:
     - tqdm==4.64.0
     - traitlets==5.3.0
     - wcwidth==0.2.5
-prefix: /home/prabhat/.miniconda3/envs/latexify-env
