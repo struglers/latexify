@@ -15,6 +15,8 @@ img = cv2.pyrDown(cv2.imread('test.jpg', cv2.IMREAD_UNCHANGED))                 
 orig_img = img.copy()                                                                #Keep original image separate
 gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)                                     #Convert it into greyscale
 thresh = cv2.threshold(gray_img, 0, 255,cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]  #Threshold it using Otsu’s thresholding method
+#cv2.threshold(source greyscale image, thresholdValue, maxVal, thresholdingTechnique) 
+#[1] is used as cv2.threshold returns two values (thresholdvalue used, threshold img)
 
 
 # In[3]:
