@@ -11,7 +11,7 @@ import cv2 #Import OpenCV
 
 
 #Preprocessing Image
-img = cv2.pyrDown(cv2.imread('testcaseraj.jpg', cv2.IMREAD_UNCHANGED))                      #Load Input Image
+img = cv2.pyrDown(cv2.imread('test.jpg', cv2.IMREAD_UNCHANGED))                      #Load Input Image
 orig_img = img.copy()                                                                #Keep original image separate
 gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)                                     #Convert it into greyscale
 thresh = cv2.threshold(gray_img, 0, 255,cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]  #Threshold it using Otsu’s thresholding method
@@ -46,16 +46,3 @@ cv2.imshow("Input Image", orig_img)         #show input image
 cv2.imshow("Bounding Boxes", img)           #show Image with bounding boxes
 cv2.waitKey(0)
 cv2.destroyallWindows()
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
