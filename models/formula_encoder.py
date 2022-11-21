@@ -2,6 +2,9 @@
 
 import torch
 from torch import nn
+from torch.nn import LSTM
+
+D2 = 512
 
 def conv3x3(in_channels: int, out_channels: int, padding: int = 1):
     """3x3 Convolution Layer with stride 1"""
@@ -12,9 +15,11 @@ def conv3x3(in_channels: int, out_channels: int, padding: int = 1):
                      padding=padding,
                      bias=True)
 
-class FormulaDecoder(nn.Module):
-    """Decoder for the entire formula image.
-    Output shape = L*D2, where D2=512 for our implementation"""
+class FeatureExtractor(nn.Module):
+    """
+    Extracts feature maps from the entire formula image.
+    Output shape = D2*H'*W', where D2=512 for our implementation
+    """
     def __init__(self) -> None:
         self.conv1 = conv3x3(in_channels=1, out_channels=64, padding=1)
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
@@ -43,4 +48,37 @@ class FormulaDecoder(nn.Module):
         x = self.pool5(x)
         x = self.conv6(x)
         x = self.bn6(x)
+        return x
+
+class RowEncoder(nn.Module):
+    """
+    Encode each row of the feature extractor output.
+    Output shape = H'*D2, where D2=512 for our implementattion.
+    """
+    def __init__(self) -> None:
+        super().__init__()
+        self.num_layers = 1
+        self.lstm = LSTM(input_size=D2,output_size=D2,
+                         num_layers=self.num_layers,
+                         batch_size=True)
+
+    def forward(self, x):
+        """Expected input size = (H',W',D2) or
+        (batch size, sequence length, number of features)"""
+        return self.lstm(x)
+
+class FormulaEncoder(nn.Module):
+    """
+    Encode the entire formula image using FeatureExtractor
+    and RowEncoder.
+    Input shape = H*W, Output shape = H'*D2
+    """
+    def __init__(self) -> None:
+        super().__init__()
+        self.feature_extractor = FeatureExtractor()
+        self.row_encoder = RowEncoder()
+
+    def forward(self, x):
+        x = self.feature_extractor(x)
+        x = self.row_encoder(x)
         return x

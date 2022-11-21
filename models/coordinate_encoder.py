@@ -22,7 +22,7 @@ class CoordinateEncoder(nn.Module):
                                stride=1, padding=1)
         self.conv2 = nn.Conv1d(32, 128, 3, stride=1, padding=1)
         self.lstm = nn.LSTM(input_size=128, hidden_size=128,
-                            num_layers=1, bias=True, batch_first=False,
+                            num_layers=1, bias=True, batch_first=True,
                             dropout=0, bidirectional=True)
         super().__init__()
 
