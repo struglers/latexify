@@ -63,9 +63,9 @@ class IBasicBlock(nn.Module):
 
 
 class IResNet(nn.Module):
-    fc_scale = 7 * 7
+    fc_scale = 4 * 4
     def __init__(self,
-                 block, layers, dropout=0, num_features=512, zero_init_residual=False,
+                 block, layers, dropout=0, num_features=256, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None, fp16=False):
         super(IResNet, self).__init__()
         self.extra_gflops = 0.0
@@ -79,7 +79,7 @@ class IResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(1, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(self.inplanes, eps=1e-05)
         self.prelu = nn.PReLU(self.inplanes)
         self.layer1 = self._make_layer(block, 32, layers[0], stride=2)
@@ -93,7 +93,7 @@ class IResNet(nn.Module):
                                        layers[2],
                                        stride=2,
                                        dilate=replace_stride_with_dilation[1])
-        self.fc = nn.Linear(256 * block.expansion * self.fc_scale, num_features)
+        self.fc = nn.Linear(128 * block.expansion * self.fc_scale, num_features)
         self.features = nn.BatchNorm1d(num_features, eps=1e-05)
         nn.init.constant_(self.features.weight, 1.0)
         self.features.weight.requires_grad = False
@@ -137,6 +137,17 @@ class IResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        """
+        Input shape: L*1*32*32
+        Output shape: L*256
+        We are taking L as the batch size.
+        However, we actually will get N items in a batch (each of which will
+        have L symbols, where L differs for each item in the batch). So we run
+        the encoder over each of the N items separately and concatenate them
+        into a single tensor of shape (N*L*256). But since L is different for
+        each item in batch, we might have to do some padding to get an identical
+        tensor.
+        """
         with torch.cuda.amp.autocast(self.fp16):
             x = self.conv1(x)
             x = self.bn1(x)
@@ -166,3 +177,25 @@ def symbol_encoder(pretrained=False, progress=True, **kwargs):
     """Symbol Encoder for IM2LaTeX task inspired from LResNetE50-IR"""
     return _iresnet('symbol_encoder', IBasicBlock, [2, 2, 2], pretrained,
                     progress, **kwargs)
+
+class SymbolEncoder(nn.Module):
+    def __init__(self, pretrained=False, progress=True, **kwargs) -> None:
+        self.encoder = _iresnet('symbol_encoder', IBasicBlock, [2, 2, 2], pretrained,
+                                progress, **kwargs)
+        super().__init__()
+
+    def forward(self, x):
+        """
+        Input shape: (N*L*1*32*32)
+        Output shape: (N*L*256)
+
+        where L can vary for each item in batch of size N.
+        """
+        N = x.shape[0]
+        symbols_list = []
+        for i in range(N):
+            symbols_list.append(self.encoder(x[i,...]))
+        return torch.stack(symbols_list, dim=0)
+    # NOTE: The above code might not work because L is different for each item
+    # in batch size N and concatenation of tensors of varying size isn't
+    # possible without padding.
