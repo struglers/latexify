@@ -66,5 +66,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Building vocab for Im2Latex")
     parser.add_argument("--data_path", type=str,
                         default="./data/", help="The dataset's dir")
+    parser.add_argument("--min_count", type=int,
+                        default=10, help="Minimum number of times a token must occur to be recorded in the vocabulary")
     args = parser.parse_args()
-    vocab = build_vocab(args.data_path)
+    vocab = build_vocab(args.data_path, min_count=args.min_count)
