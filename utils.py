@@ -9,22 +9,59 @@ from build_vocab import PAD_TOKEN, UNK_TOKEN
 
 
 def collate_fn(sign2id, batch):
-    # filter the pictures that have different weight or height
-    size = batch[0][0].size()
-    batch = [img_formula for img_formula in batch
-             if img_formula[0].size() == size]
+    """
+    Modifies and merges a list of samples appropriately to form a mini-batch of
+    Tensor(s).
+
+    Inputs:
+    - sign2id: (dict) Vocabulary mapping from sign to id
+    - batch: list of input tuples. Each input tuple is of the format
+        (formula_img, coordinates, symbols, edge_indices, formula)
+
+    Outputs: tuple of the following items
+    - formula_img: (torch.Tensor) [N, 1, H, W]
+    - coordinates: (torch.Tensor) [N, 4, L]
+    - symbols: (torch.Tensor) [N, L, 1, 32, 32]
+    - edge_indices: (torch.Tensor) [N, 2, 2E]
+    - tgt4training: (torch.Tensor) [N, T+1]
+      list in the batch
+    - tgt4cal_loss: (torch.Tensor) [N, T+1]
+
+      Here,
+        N -> Batch size
+        H -> Height of formula image
+        W -> Width of formula image
+        L -> Number of symbols extracted from the formula image
+        E -> Number of edges in the undirected graph
+        T -> size of longest token list in the batch
+    """
+    ## filter the pictures that have different weight or height
+    #size = batch[0][0].size()
+    #batch = [img_formula for img_formula in batch
+    #         if img_formula[0].size() == size]
+    ## pad different sized batches appropriately
+    max_h = max([img.shape[1] for img, _, _, _, _ in batch])
+    max_w = max([img.shape[2] for img, _, _, _, _ in batch])
+    for i in range(len(batch)):
+        img = batch[i][0] #formula img
+        img = F.pad(img, (0, max_w-img.shape[2], 0, max_h-img.shape[1]),
+                          mode="constant", value=1.0) #pad with white pixels
+        batch[i] = (img, batch[i][1], batch[i][2], batch[i][3], batch[i][4])
     # sort by the length of formula
-    batch.sort(key=lambda img_formula: len(img_formula[1].split()),
+    batch.sort(key=lambda img_formula: len(img_formula[-1].split()),
                reverse=True)
 
-    imgs, formulas = zip(*batch)
+    formula_imgs, coordinates, symbols, edge_indices, formulas = zip(*batch)
     formulas = [formula.split() for formula in formulas]
     # targets for training , begin with START_TOKEN
     tgt4training = formulas2tensor(add_start_token(formulas), sign2id)
     # targets for calculating loss , end with END_TOKEN
     tgt4cal_loss = formulas2tensor(add_end_token(formulas), sign2id)
-    imgs = torch.stack(imgs, dim=0)
-    return imgs, tgt4training, tgt4cal_loss
+    formula_imgs = torch.stack(formula_imgs, dim=0)
+    coordinates = torch.stack(coordinates, dim=0)
+    symbols = torch.stack(symbols, dim=0)
+    edge_indices = torch.stack(edge_indices, dim=0)
+    return formula_imgs, coordinates, symbols, edge_indices, tgt4training, tgt4cal_loss
 
 
 def formulas2tensor(formulas, sign2id):

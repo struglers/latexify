@@ -17,7 +17,7 @@ class Im2LatexModel(nn.Module):
                                                   enc_out_dim=enc_out_dim,
                                                   dropout=dropout)
 
-    def forward(self, imgs, formulas, epsilon=1.):
+    def forward(self, formula_imgs, coordinates, symbols, edge_indices, formulas, epsilon=1.):
         """args:
         imgs: [B, C, H, W]
         formulas: [B, MAX_LEN]
@@ -26,7 +26,8 @@ class Im2LatexModel(nn.Module):
         return:
         logits: [B, MAX_LEN, VOCAB_SIZE]
         """
-        encodings = self.formula_encoder(imgs) # [N, H', D2]
+        # TODO: Add Symbol Encoder, Coordinate Encoder and GGNN here
+        encodings = self.formula_encoder(formula_imgs) # [N, H', D2]
         logits = self.attention_decoder(encodings, formulas, epsilon=epsilon)
         return logits
 

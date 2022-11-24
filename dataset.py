@@ -15,17 +15,17 @@ class Im2LatexDataset(Dataset):
         self.data_dir = data_dir
         self.split = split
         self.max_len = max_len
-        self.pairs = self._load_pairs()
+        self.input_tuples = self._load_input_tuples()
 
-    def _load_pairs(self):
-        pairs = torch.load(join(self.data_dir, "{}.pkl".format(self.split)))
-        for i, (img, formula) in enumerate(pairs):
-            pair = (img, " ".join(formula.split()[:self.max_len]))
-            pairs[i] = pair
-        return pairs
+    def _load_input_tuples(self):
+        input_tuples = torch.load(join(self.data_dir, "{}.pkl".format(self.split)))
+        for i, (formula_imgs, coordinates, symbols, edge_indices, formula) in enumerate(input_tuples):
+            input_tuple = (formula_imgs, coordinates, symbols, edge_indices, " ".join(formula.split()[:self.max_len]))
+            input_tuples[i] = input_tuple
+        return input_tuples
 
     def __getitem__(self, index):
-        return self.pairs[index]
+        return self.input_tuples[index]
 
     def __len__(self):
-        return len(self.pairs)
+        return len(self.input_tuples)
