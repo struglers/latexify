@@ -2,6 +2,7 @@
 
 import torch
 from torch import nn
+from torch.nn.utils.rnn import pack_padded_sequence, unpack_sequence
 
 class CoordinateEncoder(nn.Module):
     """The coordinate encoder first takes input of dimension (N*4*L)
@@ -26,16 +27,18 @@ class CoordinateEncoder(nn.Module):
                             dropout=0, bidirectional=True)
         super().__init__()
 
-    def __call__(self, x: torch.Tensor, seq_lens: list):
+    def __call__(self, x: torch.Tensor, seq_lens: torch.Tensor):
         """
-        Input shape: (N*4*L)
-        Output shape: (N*L*256)
-        Note that L is the sequence length of the largest sequence in a batch of
-        N elements. Zero padding is done for all the other elements.
+        Input shape: [N, 4, L]
+        Output shape: [L', 256]
+        where L' is the sum of all sequence lengths in a batch of
+        N sequences. Zero padding is done for all the other elements.
         """
-        x = self.conv1(x) #shape: N*32*L
-        x = self.conv2(x) #shape: N*128*L
-        x = x.transpose(1,2) #Change dimension to N*L*128
+        x = self.conv1(x) #shape: [N, 32, L]
+        x = self.conv2(x) #shape: [N, 128, L]
+        x = x.transpose(1,2) #Change dimension to [N, L, 128]
         # TODO: Use pack_padded_sequence
-        x, _ = self.lstm(x) #outputs from both directions are concatenated
-        return x #Has dimension N*L*256.
+        packed_x = pack_padded_sequence(x, seq_lens, batch_first=True, enforce_sorted=False)
+        packed_x, _ = self.lstm(packed_x) #outputs from both directions are concatenated
+        x = torch.cat(unpack_sequence(packed_x), dim=0) #shape: [L', 128], where L'=sum(seq_lens)
+        return x

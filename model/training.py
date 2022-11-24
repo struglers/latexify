@@ -32,8 +32,8 @@ class Trainer(object):
         while self.epoch <= self.last_epoch:
             self.model.train()
             losses = 0.0
-            for formula_imgs, coordinates, symbols, edge_indices, tgt4training, tgt4cal_loss in self.train_loader:
-                step_loss = self.train_step(formula_imgs, coordinates, symbols, edge_indices, tgt4training, tgt4cal_loss)
+            for formula_imgs, coordinates, symbols, edge_indices, seq_lens, tgt4training, tgt4cal_loss in self.train_loader:
+                step_loss = self.train_step(formula_imgs, coordinates, symbols, edge_indices, seq_lens, tgt4training, tgt4cal_loss)
                 losses += step_loss
 
                 # log message
@@ -55,18 +55,19 @@ class Trainer(object):
             self.epoch += 1
             self.step = 0
 
-    def train_step(self, formula_imgs, coordinates, symbols, edge_indices, tgt4training, tgt4cal_loss):
+    def train_step(self, formula_imgs, coordinates, symbols, edge_indices, seq_lens, tgt4training, tgt4cal_loss):
         self.optimizer.zero_grad()
 
         formula_imgs = formula_imgs.to(self.device)
         coordinates = coordinates.to(self.device)
         symbols = symbols.to(self.device)
         edge_indices = edge_indices.to(self.device)
+        seq_lens = seq_lens.to(self.device)
         tgt4training = tgt4training.to(self.device)
         tgt4cal_loss = tgt4cal_loss.to(self.device)
         epsilon = cal_epsilon(
             self.args.decay_k, self.total_step, self.args.sample_method)
-        logits = self.model(formula_imgs, coordinates, symbols, edge_indices, tgt4training, epsilon)
+        logits = self.model(formula_imgs, coordinates, symbols, edge_indices, seq_lens, tgt4training, epsilon)
 
         # calculate loss
         loss = cal_loss(logits, tgt4cal_loss)
@@ -83,17 +84,18 @@ class Trainer(object):
         val_total_loss = 0.0
         mes = "Epoch {}, validation average loss:{:.4f}, Perplexity:{:.4f}"
         with torch.no_grad():
-            for formula_imgs, coordinates, symbols, edge_indices, tgt4training, tgt4cal_loss in self.val_loader:
+            for formula_imgs, coordinates, symbols, edge_indices, seq_lens, tgt4training, tgt4cal_loss in self.val_loader:
                 formula_imgs = formula_imgs.to(self.device)
                 coordinates = coordinates.to(self.device)
                 symbols = symbols.to(self.device)
                 edge_indices = edge_indices.to(self.device)
+                seq_lens = seq_lens.to(self.device)
                 tgt4training = tgt4training.to(self.device)
                 tgt4cal_loss = tgt4cal_loss.to(self.device)
 
                 epsilon = cal_epsilon(
                     self.args.decay_k, self.total_step, self.args.sample_method)
-                logits = self.model(formula_imgs, coordinates, symbols, edge_indices, tgt4training, epsilon)
+                logits = self.model(formula_imgs, coordinates, symbols, edge_indices, seq_lens, tgt4training, epsilon)
                 loss = cal_loss(logits, tgt4cal_loss)
                 val_total_loss += loss
             avg_loss = val_total_loss / len(self.val_loader)

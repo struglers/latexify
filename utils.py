@@ -23,6 +23,7 @@ def collate_fn(sign2id, batch):
     - coordinates: (torch.Tensor) [N, 4, L]
     - symbols: (torch.Tensor) [N, L, 1, 32, 32]
     - edge_indices: (torch.Tensor) [N, 2, 2E]
+    - seq_lens: (torch.Tensor) [N]
     - tgt4training: (torch.Tensor) [N, T+1]
       list in the batch
     - tgt4cal_loss: (torch.Tensor) [N, T+1]
@@ -31,7 +32,7 @@ def collate_fn(sign2id, batch):
         N -> Batch size
         H -> Height of formula image
         W -> Width of formula image
-        L -> Number of symbols extracted from the formula image
+        L -> Number of symbols in the image with the largest number of symbols
         E -> Number of edges in the undirected graph
         T -> size of longest token list in the batch
     """
@@ -39,14 +40,26 @@ def collate_fn(sign2id, batch):
     #size = batch[0][0].size()
     #batch = [img_formula for img_formula in batch
     #         if img_formula[0].size() == size]
+    seq_lens = [coord.shape[1] for _, coord, _, _, _ in batch]
     ## pad different sized batches appropriately
     max_h = max([img.shape[1] for img, _, _, _, _ in batch])
     max_w = max([img.shape[2] for img, _, _, _, _ in batch])
+    max_l = max(seq_lens)
     for i in range(len(batch)):
-        img = batch[i][0] #formula img
-        img = F.pad(img, (0, max_w-img.shape[2], 0, max_h-img.shape[1]),
+        f_img = batch[i][0] #formula img
+        coord = batch[i][1]
+        f_img = F.pad(f_img, (0, max_w-f_img.shape[2], 0, max_h-f_img.shape[1]),
                           mode="constant", value=1.0) #pad with white pixels
-        batch[i] = (img, batch[i][1], batch[i][2], batch[i][3], batch[i][4])
+        coord = F.pad(f_img, (0, max_l-coord.shape[1]),
+                          mode="constant", value=0.0) #pad with white pixels
+        batch[i] = (f_img, coord, batch[i][2], batch[i][3], batch[i][4])
+    # Modify edges accordingly i.e. diagonalize batch adjacency matrix
+    idx_shift = 0
+    for i in range(len(batch)):
+        edge_index = batch[i][3] + idx_shift
+        batch[i] = (batch[i][0], batch[i][1], batch[i][2], edge_index, batch[i][4])
+        idx_shift += seq_lens[i]
+
     # sort by the length of formula
     batch.sort(key=lambda img_formula: len(img_formula[-1].split()),
                reverse=True)
@@ -57,11 +70,12 @@ def collate_fn(sign2id, batch):
     tgt4training = formulas2tensor(add_start_token(formulas), sign2id)
     # targets for calculating loss , end with END_TOKEN
     tgt4cal_loss = formulas2tensor(add_end_token(formulas), sign2id)
-    formula_imgs = torch.stack(formula_imgs, dim=0)
-    coordinates = torch.stack(coordinates, dim=0)
-    symbols = torch.stack(symbols, dim=0)
-    edge_indices = torch.stack(edge_indices, dim=0)
-    return formula_imgs, coordinates, symbols, edge_indices, tgt4training, tgt4cal_loss
+    formula_imgs = torch.stack(formula_imgs, dim=0)         # [N, 1, H, W]
+    coordinates = torch.stack(coordinates, dim=0)           # [N, 4, L] where L = max(seq_lens)
+    symbols = torch.stack(symbols, dim=0).view(-1,1,32,32)  # [N*L', 1, 32, 32] where L' = sum(seq_lens)
+    edge_indices = torch.concat(edge_indices, dim=1)        # [2, 2E'] where E' is the num of edges in all graphs in the batch
+    seq_lens = torch.tensor(seq_lens, dtype=torch.long)     # [N]
+    return formula_imgs, coordinates, symbols, edge_indices, seq_lens, tgt4training, tgt4cal_loss
 
 
 def formulas2tensor(formulas, sign2id):
