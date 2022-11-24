@@ -4,6 +4,8 @@ import torch
 from torch import nn
 from torch.nn import LSTM
 
+from .position_embedding import add_positional_features
+
 D2 = 512
 
 def conv3x3(in_channels: int, out_channels: int, padding: int = 1):
@@ -18,58 +20,60 @@ def conv3x3(in_channels: int, out_channels: int, padding: int = 1):
 class FeatureExtractor(nn.Module):
     """
     Extracts feature maps from the entire formula image.
-    Output shape = D2*H'*W', where D2=512 for our implementation
+    Input: [N, 1, H, W]
+    Output shape = [N, D2, H', W'], where D2=512 for our implementation
     """
     # NOTE: All the inputs must be of the form (1*H*W) where H and W
     # are fixed apriori (hyperparameters).
     def __init__(self) -> None:
-        self.conv1 = conv3x3(in_channels=1, out_channels=64, padding=1) #64*H*W
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2) #64*(H/2)*(W/2)
-        self.conv2 = conv3x3(64, 128, 1) #128*(H/2)*(W/2)
-        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2) #128*(H/4)*(W/4)
-        self.conv3 = conv3x3(128, 256, 1) #256*(H/4)*(W/4)
-        self.bn3 = nn.BatchNorm2d(256) #256*(H/4)*(W/4)
-        self.conv4 = conv3x3(256, 256, 1) #256*(H/4)*(W/4)
-        self.pool4 = nn.MaxPool2d(kernel_size=(1,2), stride=(1,2)) #256*(H/4)*(W/8)
-        self.conv5 = conv3x3(256, 512, 1) #512*(H/4)*(W/8)
-        self.bn5 = nn.BatchNorm2d(512) #512*(H/4)*(W/8)
-        self.pool5 = nn.MaxPool2d(kernel_size=(2,1), stride=(2,1)) #512*(H/8)*(W/8)
-        self.conv6 = conv3x3(512, 512, 0) #512*(H/8 - 2)*(W/8 - 2)
-        self.bn6 = nn.BatchNorm2d(512) #512*(H/8 - 2)*(W/8 - 2) == D2*H'*W'
         super().__init__()
+        self.cnn_encoder = nn.Sequential(
+            conv3x3(in_channels=1, out_channels=64, padding=1), #64*H*W
+            # nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2), #64*(H/2)*(W/2)
+
+            conv3x3(64, 128, 1), #128*(H/2)*(W/2)
+            # nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2), #128*(H/4)*(W/4)
+
+            conv3x3(128, 256, 1), #256*(H/4)*(W/4)
+            # nn.ReLU(),
+            nn.BatchNorm2d(256), #256*(H/4)*(W/4)
+
+            conv3x3(256, 256, 1), #256*(H/4)*(W/4)
+            # nn.ReLU(),
+            nn.MaxPool2d(kernel_size=(1,2), stride=(1,2)), #256*(H/4)*(W/8)
+
+            conv3x3(256, 512, 1), #512*(H/4)*(W/8)
+            # nn.ReLU(),
+            nn.BatchNorm2d(512), #512*(H/4)*(W/8)
+            nn.MaxPool2d(kernel_size=(2,1), stride=(2,1)), #512*(H/8)*(W/8)
+
+            conv3x3(512, 512, 0), #512*(H/8 - 2)*(W/8 - 2)
+            nn.BatchNorm2d(512) #512*(H/8 - 2)*(W/8 - 2) == D2*H'*W'
+        )
 
     def forward(self, x):
         """
         Inputs:
-          - x (shape: N*1*H*W)
+          - x (shape: [N, 1, H, W])
         Outputs:
-          - y (shape: N*D2*H'*W' == N*512*(H/8 - 2)*(W/8 - 2))
+          - y (shape: [N, D2, H', W'] == [N, 512, (H/8 - 2), (W/8 - 2)])
         where N is the batch size.
         """
-        x = self.conv1(x)
-        x = self.pool1(x)
-        x = self.conv2(x)
-        x = self.pool2(x)
-        x = self.conv3(x)
-        x = self.bn3(x)
-        x = self.conv4(x)
-        x = self.pool4(x)
-        x = self.conv5(x)
-        x = self.bn5(x)
-        x = self.pool5(x)
-        x = self.conv6(x)
-        x = self.bn6(x)
+        x = self.cnn_encoder(x)
         return x
 
 class RowEncoder(nn.Module):
     """
     Encode each row of the feature extractor output.
-    Output shape = H'*D2, where D2=512 for our implementattion.
+    Input: [N, D2, H', W']
+    Output shape = [N, H', D2], where D2=512 for our implementation.
     """
     def __init__(self) -> None:
         super().__init__()
         self.num_layers = 1
-        self.lstm = LSTM(input_size=D2,output_size=D2,
+        self.lstm = LSTM(input_size=D2, hidden_size=D2,
                          num_layers=self.num_layers,
                          batch_first=True)
 
@@ -97,16 +101,19 @@ class FormulaEncoder(nn.Module):
     Encode the entire formula image using FeatureExtractor
     and RowEncoder.
     Inputs:
-        - x (shape: N*1*H*W)
+        - x (shape: [N, 1, H, W])
     Outputs:
-        - y (shape: N*H'*D2)
+        - y (shape: [N, H', D2])
     """
-    def __init__(self) -> None:
+    def __init__(self, add_pos_feat) -> None:
         super().__init__()
         self.feature_extractor = FeatureExtractor()
         self.row_encoder = RowEncoder()
+        self.add_pos_feat = add_pos_feat
 
-    def forward(self, x):
-        x = self.feature_extractor(x)
-        x = self.row_encoder(x)
-        return x
+    def forward(self, imgs):
+        imgs = self.feature_extractor(imgs)  # [N, 512, H', W']
+        encoded_imgs = self.row_encoder(imgs)  # [N, H', 512]
+        if self.add_pos_feat:
+            encoded_imgs = add_positional_features(encoded_imgs)
+        return encoded_imgs
