@@ -3,7 +3,7 @@ from os.path import join
 import argparse
 import csv
 
-from PIL import Image
+import cv2
 from torchvision import transforms
 import torch
 
@@ -26,7 +26,7 @@ def preprocess(data_dir, split):
             formula, img_name = line
             # load img and its corresponding formula
             img_path = join(images_dir, img_name)
-            img = Image.open(img_path)
+            img = cv2.imread(img_path)
 
             # Converting 3-channel RGB to 1-channel grayscale (not binary)
             formula_img_tensor = torch.mean(transform(img), dim=0, keepdim=True)
