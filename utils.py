@@ -1,5 +1,6 @@
 import os
 import math
+from PIL.Image import Image
 
 import torch
 import torch.nn.functional as F
@@ -150,3 +151,27 @@ def cal_epsilon(k, step, method):
         return k/(k+math.exp(step/k))
     else:
         return 1.
+
+
+def extract_inputs_from_image(img: Image):
+    """
+    Input:
+    - img: 3 channel PNG image for formula.
+           type: PIL.Image.Image
+    Output: a tuple of the following three items
+    - coordinates: numpy array of shape [4, L], where L is the number of
+      symbols.
+    - symbols: np.ndarray of shape [L, 1, 32, 32], where L is the number of
+      symbols.
+    - edge_indices: np.ndarray of shape [2, 2E], where E is number of edges in
+      a graph. Note that we have 2E in the shape because graph is undirected.
+
+    All the necessary normalizing and reshaping (if any) must be done here
+    itself.
+    """
+    # @Ninad
+    # TODO: Add/modify the code in any way to get the appropriate output
+    coordinates = None
+    symbols = None
+    edge_indices = None
+    return (coordinates, symbols, edge_indices)
