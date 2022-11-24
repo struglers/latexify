@@ -10,7 +10,7 @@ INIT = 1e-2
 
 class AttentionDecoder(nn.Module):
     def __init__(self, out_size, emb_size, dec_rnn_h,
-                 enc_out_dim=512, add_pos_feat=False, dropout=0.):
+                 enc_out_dim=512, dropout=0.):
         super(AttentionDecoder, self).__init__()
 
         self.rnn_decoder = nn.LSTMCell(dec_rnn_h+emb_size, dec_rnn_h)

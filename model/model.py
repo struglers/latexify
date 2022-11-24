@@ -26,7 +26,7 @@ class Im2LatexModel(nn.Module):
         return:
         logits: [B, MAX_LEN, VOCAB_SIZE]
         """
-        encodings = self.formula_encoder(imgs)
+        encodings = self.formula_encoder(imgs) # [N, H', D2]
         logits = self.attention_decoder(encodings, formulas, epsilon=epsilon)
         return logits
 
