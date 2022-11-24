@@ -1,12 +1,214 @@
 import os
 import math
 from PIL.Image import Image
-
+import cv2
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.distributions.bernoulli import Bernoulli
+from operator import itemgetter
 
 from build_vocab import PAD_TOKEN, UNK_TOKEN
+
+#----------------------------
+# defines
+#----------------------------
+_cX = 0
+_cY = 1
+_x = 2
+_y = 3
+_w = 4
+_h = 5
+
+#----------------------------
+# HyperParameters
+#----------------------------
+num_dirs = 8
+threshold = 1000 # downscale the input image to have atmost <threshold> number of pixels in its larger dimension
+
+def process(img):
+    '''
+    import the image and convert it to the required size determined by the hyperparameter threshold
+    Also, return the downscaled and grayscaled image
+    '''
+    while img.shape[0] > threshold or img.shape[1] > threshold:
+        img = cv2.pyrDown(img)
+    #orig_img = img.copy()
+
+    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    #gray_img = 255*(gray_img < 80).astype(np.uint8)
+    
+    #----------------------------------------------------------#
+    # If you want this to work, you will have to invt the image#
+    #----------------------------------------------------------#
+
+    #coords = cv2.findNonZero(gray_img)
+    #x, y, w, h = cv2.boundingRect(coords)
+    #img = img[y:y+h,x:x+w]
+    #gray_img = gray_img[y:y+h,x:x+w]
+    
+    return img, gray_img
+
+
+def symSeg(im_loc, printOP = False):
+    '''
+    
+    '''
+    img = cv2.imread(im_loc)
+    img, gray_img = process(img)
+    thresh = cv2.threshold(gray_img, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+    im_data = cv2.connectedComponentsWithStats(thresh, cv2.CV_32S, 4)
+    (numLabels, labels, stats, centroids) = im_data
+
+    # filtering noise points by checking area
+    # Actually I cannot do this, otherwise we cannot identify 'therefore' symbol
+    '''
+    temp_s = []
+    temp_c = []
+    for i in range(len(stats)):
+        if stats[i, cv2.CC_STAT_AREA] > 40:
+            temp_s.append(stats[i])
+            temp_c.append(centroids[i])
+    stats = temp_s
+    centroids = temp_c
+    '''
+    for i in range(len(stats)):
+        print(stats[i])
+    
+    coordinates = []
+    for i in range(len(stats)):
+        #print(stats[i])
+        x = stats[i][cv2.CC_STAT_LEFT]
+        y = stats[i][cv2.CC_STAT_TOP]
+        w = stats[i][cv2.CC_STAT_WIDTH]
+        h = stats[i][cv2.CC_STAT_HEIGHT]
+        (cX, cY) = centroids[i]
+        coordinates.append([cX, cY, x ,y , w, h])
+    #sorted(coordinates, key=itemgetter(0,1))
+    #sorted(coordinates, key=itemgetter(0,1))
+    
+    coordinates.pop(0) # remove the default bounding box
+    for i in range(len(coordinates)):
+        print(coordinates[i])
+
+    coordinates = sorted(coordinates, key = itemgetter(_cX, _cY))
+    
+    for i in range(len(coordinates)):
+        print(coordinates[i])
+
+    if printOP == True:
+        for i in range(len(coordinates)):
+            #x = stats[i, cv2.CC_STAT_LEFT]
+            #y = stats[i, cv2.CC_STAT_TOP]
+            #w = stats[i, cv2.CC_STAT_WIDTH]
+            #h = stats[i, cv2.CC_STAT_HEIGHT]
+            #(cX, cY) = centroids[i]
+            x,y = coordinates[i][_x], coordinates[i][_y]
+            w,h = coordinates[i][_w], coordinates[i][_h]
+            img = cv2.rectangle(img, (x,y), (x+w, y+h), (0, 255, 0), 3)
+            cX,cY = coordinates[i][_cX], coordinates[i][_cY]
+            img = cv2.circle(img, (int(cX), int(cY)), 4, (0,0,255), -1)
+            img = cv2.putText(img, str(i), (int(cX), int(cY)), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(0, 0, 0),thickness=1)
+            #print(i, "X: ", cX, "Y: ", cY)
+        
+        cv2.imshow("gray", thresh)
+        cv2.waitKey(0)
+        #cv2.imshow("Input Image", orig_img)
+        cv2.imshow("Bounding Boxes", img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    
+    #cv2.imwrite('thresh.jpg', thresh)
+    #cv2.imwrite('BoundingBoxes.jpg', img)
+
+    return (coordinates, thresh)
+
+
+def LOSGraphBuilder(coordinates, img):
+    cpy = img.copy()
+    img_w = img.shape[1]
+    img_h = img.shape[0]
+    dir = list()
+    graph = dict()
+    for x in range(num_dirs):
+        dir.append((np.cos(2*np.pi*x/num_dirs), np.sin(2*np.pi*x/num_dirs)))
+
+    for i in range(len(coordinates)):
+        graph[i] = []
+        for j in range(len(dir)):
+            n = 1
+            while True:
+                # move from centroid in direction dir until you find a white pixel, or you overflow the image dimensions
+                pX = int(coordinates[i][_cX] + dir[j][0]*n)
+                pY = int(coordinates[i][_cY] + dir[j][1]*n)
+
+                #if i == 8:
+                #    print(j, n, pX, pY)
+                # problem Identified: Since 8 and 4 are so close, for each direction 8 always hits 4 first before reaching any other node and so 8 is only
+                # connected to 4. This may be either desirable or a problem. Need to discuss this.
+
+
+                # overflowed image dimensions?
+                if(pX >= img_w or pX < 0 or pY < 0 or pY >= img_h):
+                    break
+
+                # found white pixel? Remember we are using 'thresh' as our image here and it is inverted in color
+                if img[pY][pX] > 100:
+                    # flag checks whether we have encountered a new symbol or we are still hitting
+                    # the current symbol while looking in LOS.
+                    flag = False
+                    for bb in range(1, len(coordinates)):
+                        # search for the bounding box in which this pixel lies
+                        # bb is an index into the bounding boxes list
+                        if bb == i:
+                            continue
+                        if inBoundingBox((pX, pY), coordinates[bb]):
+                            flag = True
+                            if bb in graph[i]:
+                                continue
+                            else:
+                                graph[i].append(bb)
+                    if flag:
+                        break
+
+                cpy = cv2.circle(cpy, (int(pX), int(pY)), 0, (128, 128, 128), -1)
+                
+                n += 1
+    
+    # part of code which makes this an undirected graph
+    for i in graph.keys():
+        for j in graph[i]:
+            if i not in graph[j]:
+                graph[j].append(i)
+
+    # Convert graph to a representation which can be fed into the GNN
+    data = [[],[]]   # this list will be converted to a numpy array later
+    for i in graph.keys():
+        for j in graph[i]:
+            data[0].append(i)
+            data[1].append(j)
+
+    data = np.array(data)
+
+    for i in range(len(coordinates)):
+        (cX, cY) = coordinates[i][_cX], coordinates[i][_cY]
+        cpy = cv2.putText(cpy, str(i), (int(cX), int(cY)), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(255, 255, 255),thickness=1)
+    #cv2.imshow('LOS', cpy)
+    #cv2.waitKey(0)
+    #cv2.imwrite('LOS.jpg', cpy)
+
+    # graph is adjacency list representation, data is a specific representation fed to GNN
+    return graph, data
+
+
+def inBoundingBox(point, coordinates):
+    xmin = coordinates[_x]
+    ymin = coordinates[_y]
+    xmax = xmin + coordinates[_w]
+    ymax = ymin + coordinates[_h]
+    if point[0] >= xmin and point[0] <= xmax and point[1] >= ymin and point[1] <= ymax:
+        return True
+    return False
 
 
 def collate_fn(sign2id, batch):
@@ -152,7 +354,7 @@ def cal_epsilon(k, step, method):
     else:
         return 1.
 
-
+        
 def extract_inputs_from_image(img: Image):
     """
     Input:
@@ -171,7 +373,54 @@ def extract_inputs_from_image(img: Image):
     """
     # @Ninad
     # TODO: Add/modify the code in any way to get the appropriate output
-    coordinates = None
-    symbols = None
-    edge_indices = None
-    return (coordinates, symbols, edge_indices)
+
+    (coordinates,thresh) = symSeg(img, printOP = False)
+    graph, edge_indices = LOSGraphBuilder(coordinates, thresh)
+    
+
+    #---------------------------------------------------------#
+    #                Generating output variables              #
+    #---------------------------------------------------------#
+
+
+    coords = []    # Variable that return 4xL coordinates
+    symbols = []    # Variable that returns Lx1x32x32 images
+    max_dim = 0
+    for i in range(len(coordinates)):
+        x = coordinates[i][_x]
+        y = coordinates[i][_y]
+        cX = coordinates[i][_cX]
+        cY = coordinates[i][_cY]
+        w = coordinates[i][_w]
+        h = coordinates[i][_h]
+        coords.append([cX, cY, h, w])
+        if w>max_dim:
+            max_dim = w
+        if h>max_dim:
+            max_dim = h
+    #print(max_dim)
+    coords = np.array(coords).T
+    ratio = 32/max_dim
+
+    for i in range(len(coordinates)):
+        x = coordinates[i][_x]
+        y = coordinates[i][_y]
+        cX = coordinates[i][_cX]
+        cY = coordinates[i][_cY]
+        w = coordinates[i][_w]
+        h = coordinates[i][_h]
+        tmp_sym = thresh[y:y+h, x:x+w]
+        tmp_sym = cv2.resize(src = tmp_sym, dsize = (0,0), fx = ratio, fy = ratio)
+        tmp_sym = np.pad(tmp_sym, pad_width=(0,32), mode = 'constant', constant_values = 0)
+        tmp_sym = tmp_sym[:32, :32]
+        tmp_sym = tmp_sym[None, ...]
+        print(i, ':', tmp_sym.shape)
+        symbols.append(tmp_sym)
+    symbols = np.array(symbols)
+    
+    
+    #print(ret_cor.shape)
+    #print(ret_sym.shape)
+    #print(edge_indices.shape)
+
+    return (coords, symbols, edge_indices)
