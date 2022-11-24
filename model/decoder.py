@@ -34,7 +34,7 @@ class AttentionDecoder(nn.Module):
 
     def forward(self, encoded_imgs, formulas, epsilon=1.):
         """args:
-        imgs: [B, C, H, W]
+        encoded_imgs: [B, H'+L, D2]
         formulas: [B, MAX_LEN]
         epsilon: probability of the current time step to
                  use the true previous token

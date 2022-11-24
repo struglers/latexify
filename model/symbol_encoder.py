@@ -136,13 +136,15 @@ class IResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, list_x, seq_lens):
+    def forward(self, x):
         """
         Inputs:
-        - list_x: List(L*1*32*32) of N items
-        - seq_lens: List of lengths of each sequence in the batch
+        - x: torch.Tensor [L', 1, 32, 32]
+        where L' = sum(seq_lens)
+
         Outputs:
         - x: List(L*256) of N items
+        - x: torch.Tensor [L', 256]
         We are taking L as the batch size.
         However, we actually will get N items in a batch (each of which will
         have L symbols, where L differs for each item in the batch). So we run
@@ -151,7 +153,6 @@ class IResNet(nn.Module):
         each item in batch, we might have to do some padding to get an identical
         tensor.
         """
-        x = torch.concat(list_x, dim=0) #shape: (M),1,32,32 where (M)=sum(seq_lens)
         with torch.cuda.amp.autocast(self.fp16):
             x = self.conv1(x)
             x = self.bn1(x)
@@ -161,14 +162,9 @@ class IResNet(nn.Module):
             x = self.layer3(x)
             x = torch.flatten(x, 1)
         x = self.fc(x.float() if self.fp16 else x)
-        x = self.features(x) #shape: (M),256
+        x = self.features(x) #shape: [L', 256]
 
-        out = []
-        idx = 0
-        for l in seq_lens:
-            out.append(x[idx:idx+l,...])
-            idx += l
-        return out
+        return x
 
 
 def _iresnet(arch, block, layers, pretrained, progress, **kwargs):
@@ -196,16 +192,9 @@ class SymbolEncoder(nn.Module):
 
     def forward(self, x):
         """
-        Input shape: (N*L*1*32*32)
-        Output shape: (N*L*256)
+        Input shape: [L', 1, 32, 32]
+        Output shape: [L', 256]
 
         where L can vary for each item in batch of size N.
         """
-        N = x.shape[0]
-        symbols_list = []
-        for i in range(N):
-            symbols_list.append(self.encoder(x[i,...]))
-        return torch.stack(symbols_list, dim=0)
-    # NOTE: The above code might not work because L is different for each item
-    # in batch size N and concatenation of tensors of varying size isn't
-    # possible without padding.
+        return self.encoder(x)
