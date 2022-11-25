@@ -371,7 +371,8 @@ def extract_inputs_from_image(img: Image):
     ret_sym = np.array(ret_sym)
 
     # Setting coords to [cx, cy, h, w]. Shape is [4, L]
-    coords = coords[:,[_cX, _cX, _h, _w]].transpose(1,0)
+    coords = np.array(coords)
+    coords = coords[:,[_cX, _cY, _h, _w]].transpose(1,0)
     #print(ret_cor.shape)
     #print(ret_sym.shape)
     #print(edges.shape)

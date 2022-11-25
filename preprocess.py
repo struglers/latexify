@@ -39,6 +39,8 @@ def preprocess(data_dir, split):
                 coordinates, symbols, edge_indices = extract_inputs_from_image(img)
             except: #skip all samples that throw an error (desperate quickfix!)
                 continue
+            # coordinates, symbols, edge_indices = extract_inputs_from_image(img)
+
             coordinate_tensor = torch.tensor(coordinates)
             symbol_img_tensor = torch.tensor(symbols)
             los_graph_edge_indices_tensor = torch.tensor(edge_indices)
