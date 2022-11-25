@@ -58,13 +58,13 @@ class Trainer(object):
     def train_step(self, formula_imgs, coordinates, symbols, edge_indices, seq_lens, tgt4training, tgt4cal_loss):
         self.optimizer.zero_grad()
 
-        formula_imgs = formula_imgs.to(self.device)
-        coordinates = coordinates.to(self.device)
-        symbols = symbols.to(self.device)
-        edge_indices = edge_indices.to(self.device)
-        seq_lens = seq_lens.to(self.device)
-        tgt4training = tgt4training.to(self.device)
-        tgt4cal_loss = tgt4cal_loss.to(self.device)
+        formula_imgs = formula_imgs.to(device=self.device)
+        coordinates = coordinates.to(device=self.device)
+        symbols = symbols.to(device=self.device)
+        edge_indices = edge_indices.to(device=self.device)
+        # Keep seq_lens on the CPU
+        tgt4training = tgt4training.to(device=self.device)
+        tgt4cal_loss = tgt4cal_loss.to(device=self.device)
         epsilon = cal_epsilon(
             self.args.decay_k, self.total_step, self.args.sample_method)
         logits = self.model(formula_imgs, coordinates, symbols, edge_indices, seq_lens, tgt4training, epsilon)

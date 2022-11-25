@@ -17,6 +17,11 @@ def collate_fn(sign2id, batch):
     - sign2id: (dict) Vocabulary mapping from sign to id
     - batch: list of input tuples. Each input tuple is of the format
         (formula_img, coordinates, symbols, edge_indices, formula)
+      - formula_img [1, Hi, Wi]
+      - coordinates [4, Li]
+      - symbols [Li, 1, 32, 32]
+      - edge_indices [2, 2E]
+      - formula (string)
 
     Outputs: tuple of the following items
     - formula_img: (torch.Tensor) [N, 1, H, W]
@@ -50,7 +55,7 @@ def collate_fn(sign2id, batch):
         coord = batch[i][1]
         f_img = F.pad(f_img, (0, max_w-f_img.shape[2], 0, max_h-f_img.shape[1]),
                           mode="constant", value=1.0) #pad with white pixels
-        coord = F.pad(f_img, (0, max_l-coord.shape[1]),
+        coord = F.pad(coord, (0, max_l-coord.shape[1]),
                           mode="constant", value=0.0) #pad with white pixels
         batch[i] = (f_img, coord, batch[i][2], batch[i][3], batch[i][4])
     # Modify edges accordingly i.e. diagonalize batch adjacency matrix
@@ -70,11 +75,11 @@ def collate_fn(sign2id, batch):
     tgt4training = formulas2tensor(add_start_token(formulas), sign2id)
     # targets for calculating loss , end with END_TOKEN
     tgt4cal_loss = formulas2tensor(add_end_token(formulas), sign2id)
-    formula_imgs = torch.stack(formula_imgs, dim=0)         # [N, 1, H, W]
-    coordinates = torch.stack(coordinates, dim=0)           # [N, 4, L] where L = max(seq_lens)
-    symbols = torch.cat(symbols, dim=0)                     # [L', 1, 32, 32] where L' = sum(seq_lens)
-    edge_indices = torch.concat(edge_indices, dim=1)        # [2, 2E'] where E' is the num of edges in all graphs in the batch
-    seq_lens = torch.tensor(seq_lens, dtype=torch.long)     # [N]
+    formula_imgs = torch.stack(formula_imgs, dim=0).float()         # [N, 1, H, W]
+    coordinates = torch.stack(coordinates, dim=0).float()          # [N, 4, L] where L = max(seq_lens)
+    symbols = torch.cat(symbols, dim=0).float()                     # [L', 1, 32, 32] where L' = sum(seq_lens)
+    edge_indices = torch.concat(edge_indices, dim=1).long()        # [2, 2E'] where E' is the num of edges in all graphs in the batch
+    seq_lens = torch.tensor(seq_lens, dtype=torch.int64)     # [N]
     return formula_imgs, coordinates, symbols, edge_indices, seq_lens, tgt4training, tgt4cal_loss
 
 
