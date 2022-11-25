@@ -31,11 +31,7 @@ def process(img):
     import the image and convert it to the required size determined by the hyperparameter threshold
     Also, return the downscaled and grayscaled image
     '''
-    if img.shape[0] > img.shape[1]:
-        ratio = threshold/img.shape[0]
-    else:
-        ratio = threshold/img.shape[1]
-    
+    ratio = threshold / max(img.shape[0], img.shape[1])
 
     img = cv2.resize(src = img, dsize = (0,0), fx = ratio, fy = ratio)
     #orig_img = img.copy()
@@ -136,6 +132,8 @@ def graphBuilder(coordinates, img):
     num_nodes = len(coordinates)
     for i in range(num_nodes):
         for j in range(max(i-10, 0), min(i+10, num_nodes)):
+            if j==i:
+                continue
             _,_,xj,yj,_,_ = coordinates[j]
             point = xj,yj
             if isInside(point, coordinates[i], img.shape):
@@ -147,11 +145,11 @@ def graphBuilder(coordinates, img):
 def isInside(point, coordinates, img_dims):
     deltaX = int(img_dims[0]*0.3)
     deltaY = int(img_dims[1]*0.3)
-    cX, cY, xi, yi, wi, hi = coordinates
-    xmax = cX + deltaX
-    xmin = cX - deltaX
-    ymax = cY + deltaY
-    ymin = cY - deltaY
+    cXi, cYi, _, _, _, _ = coordinates
+    xmax = cXi + deltaX
+    xmin = cXi - deltaX
+    ymax = cYi + deltaY
+    ymin = cYi - deltaY
     if point[0] < xmax and point[0] > xmin and point[1] < ymax and point[1] > ymin:
         return True
     return False
@@ -373,7 +371,7 @@ def extract_inputs_from_image(img: Image):
     ret_sym = np.array(ret_sym)
 
     # Setting coords to [cx, cy, h, w]. Shape is [4, L]
-    coords = coords[:,[0,1,4,5]].transpose(1,0)
+    coords = coords[:,[_cX, _cX, _h, _w]].transpose(1,0)
     #print(ret_cor.shape)
     #print(ret_sym.shape)
     #print(edges.shape)
