@@ -1,11 +1,158 @@
 import os
 import math
-
+from PIL.Image import Image
+import cv2
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.distributions.bernoulli import Bernoulli
+from operator import itemgetter
 
 from build_vocab import PAD_TOKEN, UNK_TOKEN
+
+#----------------------------
+# defines
+#----------------------------
+_cX = 0
+_cY = 1
+_x = 2
+_y = 3
+_w = 4
+_h = 5
+
+#----------------------------
+# HyperParameters
+#----------------------------
+num_dirs = 8
+threshold = 1000 # downscale the input image to have atmost <threshold> number of pixels in its larger dimension
+
+def process(img):
+    '''
+    import the image and convert it to the required size determined by the hyperparameter threshold
+    Also, return the downscaled and grayscaled image
+    '''
+    ratio = threshold / max(img.shape[0], img.shape[1])
+
+    img = cv2.resize(src = img, dsize = (0,0), fx = ratio, fy = ratio)
+    #orig_img = img.copy()
+
+    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    #gray_img = 255*(gray_img < 80).astype(np.uint8)
+    
+    #----------------------------------------------------------#
+    # If you want this to work, you will have to invt the image#
+    #----------------------------------------------------------#
+
+    #coords = cv2.findNonZero(gray_img)
+    #x, y, w, h = cv2.boundingRect(coords)
+    #img = img[y:y+h,x:x+w]
+    #gray_img = gray_img[y:y+h,x:x+w]
+    
+    return img, gray_img
+
+
+def symSeg(img, printOP = False):
+    '''
+    
+    '''
+    img, gray_img = process(img)
+    thresh = cv2.threshold(gray_img, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+    im_data = cv2.connectedComponentsWithStats(thresh, cv2.CV_32S, 4)
+    (numLabels, labels, stats, centroids) = im_data
+
+    # filtering noise points by checking area
+    # Actually I cannot do this, otherwise we cannot identify 'therefore' symbol
+    '''
+    temp_s = []
+    temp_c = []
+    for i in range(len(stats)):
+        if stats[i, cv2.CC_STAT_AREA] > 40:
+            temp_s.append(stats[i])
+            temp_c.append(centroids[i])
+    stats = temp_s
+    centroids = temp_c
+    '''
+    #for i in range(len(stats)):
+    #    print(stats[i])
+    
+    coordinates = []
+    for i in range(len(stats)):
+        #print(stats[i])
+        x = stats[i][cv2.CC_STAT_LEFT]
+        y = stats[i][cv2.CC_STAT_TOP]
+        w = stats[i][cv2.CC_STAT_WIDTH]
+        h = stats[i][cv2.CC_STAT_HEIGHT]
+        (cX, cY) = centroids[i]
+        coordinates.append([cX, cY, x ,y , w, h])
+    #sorted(coordinates, key=itemgetter(0,1))
+    #sorted(coordinates, key=itemgetter(0,1))
+    
+    coordinates.pop(0) # remove the default bounding box
+    #for i in range(len(coordinates)):
+    #    print(coordinates[i])
+
+    coordinates = sorted(coordinates, key = itemgetter(_cX, _cY))
+    
+    #for i in range(len(coordinates)):
+    #    print(coordinates[i])
+
+    if printOP == True:
+        for i in range(len(coordinates)):
+            #x = stats[i, cv2.CC_STAT_LEFT]
+            #y = stats[i, cv2.CC_STAT_TOP]
+            #w = stats[i, cv2.CC_STAT_WIDTH]
+            #h = stats[i, cv2.CC_STAT_HEIGHT]
+            #(cX, cY) = centroids[i]
+            x,y = coordinates[i][_x], coordinates[i][_y]
+            w,h = coordinates[i][_w], coordinates[i][_h]
+            img = cv2.rectangle(img, (x,y), (x+w, y+h), (0, 255, 0), 3)
+            cX,cY = coordinates[i][_cX], coordinates[i][_cY]
+            img = cv2.circle(img, (int(cX), int(cY)), 4, (0,0,255), -1)
+            img = cv2.putText(img, str(i), (int(cX), int(cY)), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, color=(0, 0, 0),thickness=1)
+            #print(i, "X: ", cX, "Y: ", cY)
+        
+        cv2.imshow("gray", thresh)
+        cv2.waitKey(0)
+        #cv2.imshow("Input Image", orig_img)
+        cv2.imshow("Bounding Boxes", img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    
+    #cv2.imwrite('thresh.jpg', thresh)
+    #cv2.imwrite('BoundingBoxes.jpg', img)
+
+    return (coordinates, thresh)
+
+
+def graphBuilder(coordinates, img):
+    # NOTE: This implementation does not guarantee an undirected graph.
+    # TODO: There is some bug in this code (we don't want points of the type [x,x]).
+    # Figure out how to solve it.
+    edges = []
+    num_nodes = len(coordinates)
+    for i in range(num_nodes):
+        for j in range(max(i-10, 0), min(i+10, num_nodes)):
+            if j==i:
+                continue
+            _,_,xj,yj,_,_ = coordinates[j]
+            point = xj,yj
+            if isInside(point, coordinates[i], img.shape):
+                edges.append([i,j])
+    edges = np.array(edges).T
+    return edges
+
+
+def isInside(point, coordinates, img_dims):
+    deltaX = int(img_dims[0]*0.3)
+    deltaY = int(img_dims[1]*0.3)
+    cXi, cYi, _, _, _, _ = coordinates
+    xmax = cXi + deltaX
+    xmin = cXi - deltaX
+    ymax = cYi + deltaY
+    ymin = cYi - deltaY
+    if point[0] < xmax and point[0] > xmin and point[1] < ymax and point[1] > ymin:
+        return True
+    return False
 
 
 def collate_fn(sign2id, batch):
@@ -201,3 +348,92 @@ def cal_epsilon(k, step, method):
         return k/(k+math.exp(step/k))
     else:
         return 1.
+
+        
+def extract_inputs_from_image(img: Image):
+    """
+    Input:
+    - img: 3 channel PNG image for formula.
+           type: PIL.Image.Image
+    Output: a tuple of the following three items
+    - coordinates: numpy array of shape [4, L], where L is the number of
+      symbols.
+    - symbols: np.ndarray of shape [L, 1, 32, 32], where L is the number of
+      symbols.
+    - edge_indices: np.ndarray of shape [2, 2E], where E is number of edges in
+      a graph. Note that we have 2E in the shape because graph is undirected.
+
+    All the necessary normalizing and reshaping (if any) must be done here
+    itself.
+    """
+    # @Ninad
+    # TODO: Add/modify the code in any way to get the appropriate output
+
+    (coords,thresh) = symSeg(img, printOP = False)
+    edge_indices = graphBuilder(coords, thresh)
+
+    #LOSViewer(coordinates, edges)
+    '''
+    for i in range(len(data[0])):
+        print(data[0,i], data[1,i])
+    '''
+    
+
+    #---------------------------------------------------------#
+    #                Generating output variables              #
+    #---------------------------------------------------------#
+
+
+    ret_cor = []    # Variable that return 4xL coordinates
+    ret_sym = []    # Variable that returns Lx1x32x32 images
+    max_dim = 0
+    for i in range(len(coords)):
+        cX, cY, x, y, w, h = coords[i]
+        ret_cor.append([cX, cY, h, w])
+        if w > max_dim:
+            idx = i
+            max_dim = w
+        if h > max_dim:
+            idx = i
+            max_dim = h
+    #print(max_dim)
+    ret_cor = np.array(ret_cor).T
+    ratio = 32/max_dim
+
+    cX, cY, x, y, w, h = coords[idx]
+
+    '''
+    tmp = thresh[y:y+h, x:x+w]
+
+    cv2.imshow('',tmp)
+    cv2.waitKey(0)
+    '''
+
+    for i in range(len(coords)):
+        cX, cY, x, y, w, h = coords[i]
+        tmp_sym = thresh[y:y+h, x:x+w]
+        #TODO: initialize a 32x32 matrix and superimpose
+        tmp_sym = cv2.resize(src = tmp_sym, dsize = (0,0), fx = ratio, fy = ratio)
+        tmp_sym = np.pad(tmp_sym, [(0,32-tmp_sym.shape[0]),(0,32-tmp_sym.shape[1])])
+        #pdb.set_trace()
+        tmp_sym = tmp_sym[None, ...]
+        #print(i, ':', tmp_sym.shape)
+        ret_sym.append(tmp_sym)
+    ret_sym = np.array(ret_sym)
+
+    # Setting coords to [cx, cy, h, w]. Shape is [4, L]
+    coords = np.array(coords)
+    coords = coords[:,[_cX, _cY, _h, _w]].transpose(1,0)
+    #print(ret_cor.shape)
+    #print(ret_sym.shape)
+    #print(edges.shape)
+    
+    #print(ret_cor.shape)
+    #print(ret_sym.shape)
+    #print(edges.shape)
+
+    #print(ret_cor.shape)
+    #print(ret_sym.shape)
+    #print(edge_indices.shape)
+
+    return (coords, ret_sym, edge_indices)
