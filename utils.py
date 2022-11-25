@@ -129,7 +129,9 @@ def symSeg(img, printOP = False):
 
 
 def graphBuilder(coordinates, img):
-    #Note: This implementation does not guarantee an undirected graph.
+    # NOTE: This implementation does not guarantee an undirected graph.
+    # TODO: There is some bug in this code (we don't want points of the type [x,x]).
+    # Figure out how to solve it.
     edges = []
     num_nodes = len(coordinates)
     for i in range(num_nodes):
@@ -369,21 +371,17 @@ def extract_inputs_from_image(img: Image):
         #print(i, ':', tmp_sym.shape)
         ret_sym.append(tmp_sym)
     ret_sym = np.array(ret_sym)
-    
-    
-    
-    
-    
+
+    # Setting coords to [cx, cy, h, w]. Shape is [4, L]
+    coords = coords[:,[0,1,4,5]].transpose(1,0)
     #print(ret_cor.shape)
     #print(ret_sym.shape)
     #print(edges.shape)
-    
     
     #print(ret_cor.shape)
     #print(ret_sym.shape)
     #print(edges.shape)
 
-    
     #print(ret_cor.shape)
     #print(ret_sym.shape)
     #print(edge_indices.shape)
