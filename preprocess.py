@@ -6,6 +6,7 @@ import csv
 import cv2
 from torchvision import transforms
 import torch
+from tqdm import tqdm
 
 from utils import extract_inputs_from_image
 
@@ -22,7 +23,7 @@ def preprocess(data_dir, split):
     with open(split_file, 'r') as csvfile:
         f = csv.reader(csvfile)
         next(f, None) #Ignore heading
-        for line in f:
+        for line in tqdm(f, desc=split):
             formula, img_name = line
             # load img and its corresponding formula
             img_path = join(images_dir, img_name)
@@ -34,7 +35,10 @@ def preprocess(data_dir, split):
             # TODO: check if the following code works as desired i.e. the input
             # tuple must have tensors of proper shape and value range. If not,
             # modify accordingly.
-            coordinates, symbols, edge_indices = extract_inputs_from_image(img)
+            try:
+                coordinates, symbols, edge_indices = extract_inputs_from_image(img)
+            except: #skip all samples that throw an error (desperate quickfix!)
+                continue
             coordinate_tensor = torch.tensor(coordinates)
             symbol_img_tensor = torch.tensor(symbols)
             los_graph_edge_indices_tensor = torch.tensor(edge_indices)

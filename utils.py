@@ -33,6 +33,8 @@ def process(img):
     '''
     if img.shape[0] > img.shape[1]:
         ratio = threshold/img.shape[0]
+    else:
+        ratio = threshold/img.shape[1]
     
 
     img = cv2.resize(src = img, dsize = (0,0), fx = ratio, fy = ratio)
