@@ -72,7 +72,7 @@ def collate_fn(sign2id, batch):
     tgt4cal_loss = formulas2tensor(add_end_token(formulas), sign2id)
     formula_imgs = torch.stack(formula_imgs, dim=0)         # [N, 1, H, W]
     coordinates = torch.stack(coordinates, dim=0)           # [N, 4, L] where L = max(seq_lens)
-    symbols = torch.stack(symbols, dim=0).view(-1,1,32,32)  # [N*L', 1, 32, 32] where L' = sum(seq_lens)
+    symbols = torch.cat(symbols, dim=0)                     # [L', 1, 32, 32] where L' = sum(seq_lens)
     edge_indices = torch.concat(edge_indices, dim=1)        # [2, 2E'] where E' is the num of edges in all graphs in the batch
     seq_lens = torch.tensor(seq_lens, dtype=torch.long)     # [N]
     return formula_imgs, coordinates, symbols, edge_indices, seq_lens, tgt4training, tgt4cal_loss

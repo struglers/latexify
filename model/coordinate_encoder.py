@@ -19,13 +19,13 @@ class CoordinateEncoder(nn.Module):
     vector for each symbol. This set of transposed features is fed into a
     bidirectional LSTM to get outputs of size N*L*256"""
     def __init__(self) -> None:
+        super().__init__()
         self.conv1 = nn.Conv1d(in_channels=4, out_channels=32, kernel_size=3,
                                stride=1, padding=1)
         self.conv2 = nn.Conv1d(32, 128, 3, stride=1, padding=1)
         self.lstm = nn.LSTM(input_size=128, hidden_size=128,
                             num_layers=1, bias=True, batch_first=True,
                             dropout=0, bidirectional=True)
-        super().__init__()
 
     def __call__(self, x: torch.Tensor, seq_lens: torch.Tensor):
         """

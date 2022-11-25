@@ -186,9 +186,9 @@ def symbol_encoder(pretrained=False, progress=True, **kwargs):
 
 class SymbolEncoder(nn.Module):
     def __init__(self, pretrained=False, progress=True, **kwargs) -> None:
+        super().__init__()
         self.encoder = _iresnet('symbol_encoder', IBasicBlock, [2, 2, 2], pretrained,
                                 progress, **kwargs)
-        super().__init__()
 
     def forward(self, x):
         """
