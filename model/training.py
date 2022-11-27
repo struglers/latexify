@@ -89,7 +89,7 @@ class Trainer(object):
                 coordinates = coordinates.to(self.device)
                 symbols = symbols.to(self.device)
                 edge_indices = edge_indices.to(self.device)
-                seq_lens = seq_lens.to(self.device)
+                # Keep seq_lens on the CPU
                 tgt4training = tgt4training.to(self.device)
                 tgt4cal_loss = tgt4cal_loss.to(self.device)
 

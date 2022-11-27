@@ -21,7 +21,7 @@ class Im2LatexModel(nn.Module):
         self.coordinate_encoder = CoordinateEncoder()
         self.symbol_encoder = SymbolEncoder()
         self.ggnn = GatedGNN()
-        self.attention_decoder = AttentionDecoder(out_size, emb_size, dec_rnn_h,
+        self.decoder = AttentionDecoder(out_size, emb_size, dec_rnn_h,
                                                   enc_out_dim=enc_out_dim,
                                                   dropout=dropout)
 
@@ -46,6 +46,12 @@ class Im2LatexModel(nn.Module):
         return:
         logits: [B, MAX_LEN, VOCAB_SIZE]
         """
+        encodings = self.encode(formula_imgs, coordinates, symbols, edge_indices, seq_lens)
+        logits = self.decoder(encodings, formulas, epsilon=epsilon)
+
+        return logits
+
+    def encode(self, formula_imgs, coordinates, symbols, edge_indices, seq_lens):
         formula_encodings = self.formula_encoder(formula_imgs)      # [N, H', D2]
         coord_embs = self.coordinate_encoder(coordinates, seq_lens) # [L', 256]
         symbol_embs = self.symbol_encoder(symbols)                  # [L', 256]
@@ -57,7 +63,4 @@ class Im2LatexModel(nn.Module):
         symbol_encodings = pad_sequence(encodings_list, batch_first=True) # [N, L, 512], where L=max(seq_lens)
 
         encodings = torch.cat([formula_encodings, symbol_encodings], dim=1) # [N, H'+L, 512]
-        logits = self.attention_decoder(encodings, formulas, epsilon=epsilon)
-
-        return logits
-
+        return encodings

@@ -1,4 +1,5 @@
 import torch
+from torch.nn.utils.rnn import pad_sequence
 
 from build_vocab import END_TOKEN, PAD_TOKEN, START_TOKEN
 from .beam_search import BeamSearch
@@ -22,7 +23,7 @@ class LatexProducer(object):
         self.beam_size = beam_size
         self._beam_search = BeamSearch(END_TOKEN, max_len, beam_size)
 
-    def __call__(self, imgs):
+    def __call__(self, formula_imgs, coordinates, symbols, edge_indices, seq_lens):
         """args:
             imgs: images need to be decoded
             beam_size: if equal to 1, use greedy decoding
@@ -30,19 +31,22 @@ class LatexProducer(object):
             formulas list of batch_size length
         """
         if self.beam_size == 1:
-            results = self._greedy_decoding(imgs)
+            results = self._greedy_decoding(formula_imgs, coordinates, symbols, edge_indices, seq_lens)
         else:
-            results = self._batch_beam_search(imgs)
+            results = self._batch_beam_search(formula_imgs, coordinates, symbols, edge_indices, seq_lens)
         return results
 
-    def _greedy_decoding(self, imgs):
-        imgs = imgs.to(self.device)
+    def _greedy_decoding(self, formula_imgs, coordinates, symbols, edge_indices, seq_lens):
+        formula_imgs = formula_imgs.to(self.device)
+        coordinates = coordinates.to(self.device)
+        symbols = symbols.to(self.device)
+        edge_indices = edge_indices.to(self.device)
         self.model.eval()
 
-        enc_outs = self.model.encode(imgs)
-        dec_states, O_t = self.model.init_decoder(enc_outs)
+        enc_outs = self.model.encode(formula_imgs, coordinates, symbols, edge_indices, seq_lens)
+        dec_states, O_t = self.model.decoder.init_decoder(enc_outs)
 
-        batch_size = imgs.size(0)
+        batch_size = formula_imgs.size(0)
         # storing decoding results
         formulas_idx = torch.ones(
             batch_size, self.max_len, device=self.device).long() * PAD_TOKEN
@@ -51,7 +55,7 @@ class LatexProducer(object):
             batch_size, 1, device=self.device).long() * START_TOKEN
         with torch.no_grad():
             for t in range(self.max_len):
-                dec_states, O_t, logit = self.model.step_decoding(
+                dec_states, O_t, logit = self.model.decoder.step_decoding(
                     dec_states, O_t, enc_outs, tgt)
 
                 tgt = torch.argmax(logit, dim=1, keepdim=True)
@@ -101,7 +105,7 @@ class LatexProducer(object):
         # prepare data for decoding
         enc_outs = enc_outs.expand(self.beam_size, -1, -1)
         # [Beam_size, dec_rnn_h]
-        dec_states, O_t = self.model.init_decoder(enc_outs)
+        dec_states, O_t = self.model.decoder.init_decoder(enc_outs)
 
         # store top k ids (k is less or equal to beam_size)
         # in first decoding step, all they are  start token
@@ -118,7 +122,7 @@ class LatexProducer(object):
         vocab_size = len(self._sign2id)
         with torch.no_grad():
             for t in range(self.max_len):
-                dec_states, O_t, logit = self.model.step_decoding(
+                dec_states, O_t, logit = self.model.decoder.step_decoding(
                     dec_states, O_t, enc_outs, topk_ids.unsqueeze(1))
                 log_probs = torch.log(logit)  # [k, vocab_size]
 
@@ -166,14 +170,18 @@ class LatexProducer(object):
         result = self._idx2formulas(seq.unsqueeze(0))[0]
         return result
 
-    def _batch_beam_search(self, imgs):
+    def _batch_beam_search(self, formula_imgs, coordinates, symbols, edge_indices, seq_lens):
         self.model.eval()
-        imgs = imgs.to(self.device)
-        enc_outs = self.model.encode(imgs)  # [batch_size, H*W, OUT_C]
-        # enc_outs = enc_outs.expand(self.beam_size, -1, -1)
-        dec_states, O_t = self.model.init_decoder(enc_outs)
+        formula_imgs = formula_imgs.to(self.device)
+        coordinates = coordinates.to(self.device)
+        symbols = symbols.to(self.device)
+        edge_indices = edge_indices.to(self.device)
 
-        batch_size = imgs.size(0)
+        enc_outs = self.model.encode(formula_imgs, coordinates, symbols, edge_indices, seq_lens)
+        # enc_outs = enc_outs.expand(self.beam_size, -1, -1)
+        dec_states, O_t = self.model.decoder.init_decoder(enc_outs)
+
+        batch_size = formula_imgs.size(0)
         start_predictions = torch.ones(
             batch_size, device=self.device).long() * START_TOKEN
         state = {}
@@ -195,7 +203,7 @@ class LatexProducer(object):
 
         last_predictions = last_predictions.unsqueeze(1)
         with torch.no_grad():
-            dec_states, O_t, logit = self.model.step_decoding(
+            dec_states, O_t, logit = self.model.decoder.step_decoding(
                 dec_states, O_t, enc_outs, last_predictions)
 
         # update state

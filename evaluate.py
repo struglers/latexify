@@ -70,12 +70,14 @@ def main():
         model, vocab, max_len=args.max_len,
         use_cuda=use_cuda, beam_size=args.beam_size)
 
-    for imgs, tgt4training, tgt4cal_loss in tqdm(data_loader):
+    for formula_imgs, coords, symbols, edge_indices, seq_lens, tgt4training, tgt4cal_loss in tqdm(data_loader):
         try:
             reference = latex_producer._idx2formulas(tgt4cal_loss)
-            results = latex_producer(imgs)
+            results = latex_producer(formula_imgs, coords, symbols, edge_indices, seq_lens)
         except RuntimeError:
             break
+        # reference = latex_producer._idx2formulas(tgt4cal_loss)
+        # results = latex_producer(formula_imgs, coords, symbols, edge_indices, seq_lens)
 
         result_file.write('\n'.join(results))
         ref_file.write('\n'.join(reference))
