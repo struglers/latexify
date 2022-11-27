@@ -72,9 +72,7 @@ def symSeg(img, printOP = False):
     stats = temp_s
     centroids = temp_c
     '''
-    #for i in range(len(stats)):
-    #    print(stats[i])
-    
+
     coordinates = []
     for i in range(len(stats)):
         #print(stats[i])
@@ -85,16 +83,9 @@ def symSeg(img, printOP = False):
         (cX, cY) = centroids[i]
         coordinates.append([cX, cY, x ,y , w, h])
     #sorted(coordinates, key=itemgetter(0,1))
-    #sorted(coordinates, key=itemgetter(0,1))
     
     coordinates.pop(0) # remove the default bounding box
-    #for i in range(len(coordinates)):
-    #    print(coordinates[i])
-
     coordinates = sorted(coordinates, key = itemgetter(_cX, _cY))
-    
-    #for i in range(len(coordinates)):
-    #    print(coordinates[i])
 
     if printOP == True:
         for i in range(len(coordinates)):
@@ -117,9 +108,6 @@ def symSeg(img, printOP = False):
         cv2.imshow("Bounding Boxes", img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    
-    #cv2.imwrite('thresh.jpg', thresh)
-    #cv2.imwrite('BoundingBoxes.jpg', img)
 
     return (coordinates, thresh)
 
@@ -134,8 +122,8 @@ def graphBuilder(coordinates, img):
         for j in range(max(i-10, 0), min(i+10, num_nodes)):
             if j==i:
                 continue
-            _,_,xj,yj,_,_ = coordinates[j]
-            point = xj,yj
+            cXj, cYj, _, _, _, _ = coordinates[j]
+            point = cXj, cYj
             if isInside(point, coordinates[i], img.shape):
                 edges.append([i,j])
     edges = np.array(edges).T
@@ -371,10 +359,8 @@ def extract_inputs_from_image(img: Image):
     All the necessary normalizing and reshaping (if any) must be done here
     itself.
     """
-    # @Ninad
-    # TODO: Add/modify the code in any way to get the appropriate output
 
-    (coords,thresh) = symSeg(img, printOP = False)
+    coords, thresh = symSeg(img, printOP = False)
     edge_indices = graphBuilder(coords, thresh)
 
     #LOSViewer(coordinates, edges)
@@ -382,30 +368,17 @@ def extract_inputs_from_image(img: Image):
     for i in range(len(data[0])):
         print(data[0,i], data[1,i])
     '''
-    
 
     #---------------------------------------------------------#
     #                Generating output variables              #
     #---------------------------------------------------------#
 
 
-    ret_cor = []    # Variable that return 4xL coordinates
     ret_sym = []    # Variable that returns Lx1x32x32 images
-    max_dim = 0
-    for i in range(len(coords)):
-        cX, cY, x, y, w, h = coords[i]
-        ret_cor.append([cX, cY, h, w])
-        if w > max_dim:
-            idx = i
-            max_dim = w
-        if h > max_dim:
-            idx = i
-            max_dim = h
-    #print(max_dim)
-    ret_cor = np.array(ret_cor).T
-    ratio = 32/max_dim
+    coords = np.array(coords, dtype=np.int64)
 
-    cX, cY, x, y, w, h = coords[idx]
+    max_dim = coords[:,[_h, _w]].max()
+    ratio = 32/max_dim
 
     '''
     tmp = thresh[y:y+h, x:x+w]
@@ -427,18 +400,6 @@ def extract_inputs_from_image(img: Image):
     ret_sym = np.array(ret_sym)
 
     # Setting coords to [cx, cy, h, w]. Shape is [4, L]
-    coords = np.array(coords)
     coords = coords[:,[_cX, _cY, _h, _w]].transpose(1,0)
-    #print(ret_cor.shape)
-    #print(ret_sym.shape)
-    #print(edges.shape)
-    
-    #print(ret_cor.shape)
-    #print(ret_sym.shape)
-    #print(edges.shape)
-
-    #print(ret_cor.shape)
-    #print(ret_sym.shape)
-    #print(edge_indices.shape)
 
     return (coords, ret_sym, edge_indices)
