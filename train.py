@@ -57,7 +57,7 @@ def main():
     parser.add_argument("--clip", type=float, default=2.0,
                         help="The max gradient norm")
     parser.add_argument("--save_dir", type=str,
-                        default="./ckpts", help="The dir to save checkpoints")
+                        default="./checkpoints", help="The dir to save checkpoints")
     parser.add_argument("--print_freq", type=int, default=100,
                         help="The frequency to print message")
     parser.add_argument("--seed", type=int, default=2020,

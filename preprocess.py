@@ -15,7 +15,7 @@ def preprocess(data_dir, split):
     assert split in ["train", "validate", "test"]
 
     print("Process {} dataset...".format(split))
-    images_dir = join(data_dir, "formula_images_processed")
+    images_dir = join(data_dir, "formula_images_processed", "formula_images_processed")
     split_file = join(data_dir, "im2latex_{}.csv".format(split))
     inputs = []
     transform = transforms.ToTensor()
