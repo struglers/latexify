@@ -35,7 +35,7 @@ def main():
     parser.add_argument("--cuda", action='store_true',
                         default=True, help="Use cuda or not")
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--epoches", type=int, default=15)
+    parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--lr", type=float, default=3e-4,
                         help="Learning Rate")
     parser.add_argument("--min_lr", type=float, default=3e-5,
@@ -66,7 +66,7 @@ def main():
                         default=False, help="Training from checkpoint or not")
 
     args = parser.parse_args()
-    max_epoch = args.epoches
+    max_epoch = args.epochs
     from_check_point = args.from_check_point
     if from_check_point:
         checkpoint_path = get_checkpoint(args.save_dir)
@@ -136,7 +136,7 @@ def main():
         trainer = Trainer(optimizer, model, lr_scheduler,
                           train_loader, val_loader, args,
                           use_cuda=use_cuda,
-                          init_epoch=1, last_epoch=args.epoches)
+                          init_epoch=1, last_epoch=args.epochs)
     # begin training
     trainer.train()
 

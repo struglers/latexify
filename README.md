@@ -12,7 +12,7 @@ conda activate latexify-env
 ```
 
 ### Dataset
-Download the dataset from [IM2LATEX-100K dataset from Kaggle](https://www.kaggle.com/datasets/shahrukhkhan/im2latex100k) and place it in the `./data` folder. Check if all the images are present in the `./data/formula_images_processed/formula_images_processed` folder.
+Download the dataset from [IM2LATEX-100K dataset from Kaggle](https://www.kaggle.com/datasets/shahrukhkhan/im2latex100k) and extract it in the `./data` folder. Check if all the images are present in the `./data/formula_images_processed/formula_images_processed` folder.
 
 ### Preprocess
 Run the following to preprocess data and save relevant `pkl` files that will be used for training and evaluation later on.
@@ -41,7 +41,7 @@ python train.py \
      --data_path=data \
      --save_dir=checkpoints \
      --dropout=0.2 --add_position_features \
-     --epoches=25 --max_len=150
+     --epochs=25 --max_len=150
 ```
 
 ### Evaluation
